@@ -28,6 +28,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
+    // 1. Reset all states for the new stream
     set({ isLoading: true, error: null, messages: [], isClosing: false });
     const newUrl = `http://localhost:8000/api/chat/ask?query=${encodeURIComponent(
       query
@@ -42,78 +43,95 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ isLoading: true });
     };
 
-    // --- We will now listen to SPECIFIC events ---
-    // 1. Listen for 'search' event
-    es.addEventListener("search", (event: MessageEvent) => {
-      console.log("Search event:", event.data);
+    // 1. Listen for 'trace' event
+    es.addEventListener("trace", (event: MessageEvent) => {
+      console.log("Trace event:", event.data);
       set((state) => ({
-        messages: [...state.messages, `[Search] ${event.data}`],
+        messages: [...state.messages, `[Trace] ${event.data}`],
       }));
     });
 
-    // 2. Listen for 'sources' event
-    es.addEventListener("sources", (event: MessageEvent) => {
-      console.log("Sources event:", event.data);
-      // In D8, we'll save this to a new 'sources' state
-      set((state) => ({
-        messages: [...state.messages, `[Sources] ${event.data}`],
-      }));
+    // 2. Listen for 'chunk' event (for D8 AnswerCard)
+    es.addEventListener("chunk", (event: MessageEvent) => {
+      // We use a small trick to append chars to the last message
+      set((state) => {
+        const lastMessage = state.messages[state.messages.length - 1];
+        if (lastMessage && lastMessage.startsWith("[Chunk] ")) {
+          // If the last message starts with [Chunk], append text
+          const updatedMessage = lastMessage + event.data;
+          return {
+            messages: [...state.messages.slice(0, -1), updatedMessage],
+          };
+        } else {
+          // Otherwise, start a new [Chunk] message
+          return {
+            messages: [...state.messages, `[Chunk] ${event.data}`],
+          };
+        }
+      });
     });
 
-    // 3. Listen for 'content' event
-    es.addEventListener("content", (event: MessageEvent) => {
-      console.log("Content event:", event.data);
-      set((state) => ({
-        messages: [...state.messages, `[Content] ${event.data}`],
-      }));
-    });
-
-    // 4. Listen for 'error' event
+    // 3. Listen for 'error' event (errors actively sent by backend logic)
     es.addEventListener("error", (event: MessageEvent) => {
-      console.error("SSE stream error:", event.data);
+      // If we are already in the process of closing, ignore this event.
+      // This prevents the 'undefined' error message.
+      if (get().isClosing) {
+        console.log("Ignoring custom error event during close.");
+        return;
+      }
+
+      // Check if data exists
+      const errorData = event.data || "An undefined error occurred.";
+      console.error("SSE stream error:", errorData);
       set((state) => ({
-        messages: [...state.messages, `[Error] ${event.data}`],
+        messages: [...state.messages, `[Error] ${errorData}`],
       }));
-      // We set the error state, but DON'T close the connection,
-      // as the server might send more info.
-      set({ error: event.data || "An error occurred in the stream." });
+      set({ error: errorData });
     });
 
-    // 5. Listen for our custom 'done' event
+    // 4. Listen for 'done' event (stream finished successfully)
     es.addEventListener("done", (event: MessageEvent) => {
       console.log("Done event received:", event.data);
       set((state) => ({
         messages: [...state.messages, `[Done] ${event.data}`],
       }));
 
-      // We cleanly close the connection from the CLIENT side
-      get().stopStream();
+      // We no longer call stopStream() here.
+      // We just set the flag and wait for the "server" to hang up.
+      set({ isLoading: false, isClosing: true });
     });
 
-    // This 'onerror' handles network-level failures
+    // 5. 'onerror' (handles network-level errors, or a "clean" close)
     es.onerror = (err) => {
-      // If we are intentionally closing the stream, just return.
-      if (get().isClosing) {
+      const { isClosing, eventSource } = get(); // Get state once
+
+      // This block handles the "clean" close from the server.
+      if (isClosing) {
+        console.log("Stream closed cleanly by server.");
+        if (eventSource) {
+          eventSource.close(); // *Explicitly* close to prevent reconnect
+        }
+        set({ eventSource: null, isClosing: false }); // Final cleanup
         return;
       }
 
-      console.error("EventSource network failed:", err); // This now only logs real errors
-
-      // Only set error if the stream wasn't closed cleanly
-      if (get().eventSource) {
+      // If it's an "unexpected" network error
+      console.error("EventSource network failed:", err);
+      if (eventSource) {
         set({ isLoading: false, error: "Stream connection failed (Network)." });
-        es.close();
+        eventSource.close(); // Force close
         set({ eventSource: null });
       }
     };
   },
 
+  // 'stopStream' is now only for the "Stop" button
   stopStream: () => {
     const es = get().eventSource;
     if (es) {
-      set({ isClosing: true });
-      es.close();
-      console.log("SSE connection closed by client.");
+      set({ isClosing: true }); // *First* set the flag
+      es.close(); // *Then* close the connection
+      console.log("SSE connection closed by user button.");
       set({ eventSource: null, isLoading: false });
     }
   },
