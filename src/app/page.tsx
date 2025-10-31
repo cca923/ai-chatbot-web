@@ -1,82 +1,71 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useChatStore } from "@/store/chatStore";
+import { Send } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+
+import AssistantMessage from '@/components/AssistantMessage';
+import UserMessage from '@/components/UserMessage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { type ChatMessage } from '@/lib/types';
+import { useChatStore } from '@/store/chatStore';
 
 export default function Home() {
-  const { messages, isLoading, error, startStream, stopStream } =
-    useChatStore();
-  const [query, setQuery] = useState<string>("");
+  const [query, setQuery] = useState<string>('');
+  const { history, isLoading, startStream } = useChatStore();
+
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    return () => {
-      stopStream();
-    };
-  }, [stopStream]);
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !isLoading && query.trim() !== "") {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (query.trim() && !isLoading) {
       startStream(query);
+      setQuery('');
     }
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-12 md:p-24">
-      <h1 className="text-4xl font-bold mb-8">D4: Real Search & Scrape</h1>
-
-      <div className="flex w-full max-w-2xl mb-8 gap-2">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask me anything..."
-          disabled={isLoading}
-          className="flex-grow p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-        />
-        <button
-          onClick={() => startStream(query)}
-          disabled={isLoading || query.trim() === ""}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold shadow-lg hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          {isLoading ? "Thinking..." : "Ask"}
-        </button>
-        <button
-          onClick={stopStream}
-          disabled={!isLoading}
-          className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold shadow-lg hover:bg-red-700 disabled:bg-gray-400"
-        >
-          Stop
-        </button>
-      </div>
-
-      {error && (
-        <div className="text-red-500 font-semibold mb-4">Error: {error}</div>
-      )}
-
-      <div className="mt-4 p-6 bg-gray-900 text-gray-100 rounded-lg w-full max-w-2xl h-96 overflow-y-auto font-mono">
-        <h2 className="text-lg font-semibold text-gray-300 border-b border-gray-700 pb-2 mb-4">
-          SSE Message Log:
-        </h2>
-
-        {messages.map((msg, index) => (
-          <div key={index} className="text-sm mb-2">
-            <span className="text-gray-500 mr-2">{`[${index}]:`}</span>
-            <pre className="text-green-400 whitespace-pre-wrap break-all">
-              {msg}
-            </pre>
-          </div>
-        ))}
-
-        {messages.length === 0 && !isLoading && (
-          <div className="text-gray-500">
-            Enter a question and click Ask to start...
+    <div className='flex flex-col h-screen bg-gray-50'>
+      <div className='flex-1 overflow-y-auto p-4 md:p-6 space-y-4'>
+        {history.length === 0 && (
+          <div className='flex justify-center items-center h-full'>
+            <p className='text-gray-500'>Ask me anything to get started...</p>
           </div>
         )}
-        {isLoading && messages.length === 0 && (
-          <div className="text-gray-500">Connecting to stream...</div>
-        )}
+
+        {history.map((message: ChatMessage) => {
+          if (message.role === 'user') {
+            return <UserMessage key={message.id} message={message} />;
+          }
+          if (message.role === 'assistant') {
+            return <AssistantMessage key={message.id} message={message} />;
+          }
+          return null;
+        })}
+        <div ref={chatBottomRef} />
       </div>
-    </main>
+
+      <div className='p-4 md:p-6 bg-white border-t border-gray-200 shadow-sm sticky bottom-0'>
+        <form
+          onSubmit={handleSubmit}
+          className='flex items-center max-w-3xl mx-auto gap-2'
+        >
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder='Ask me anything...'
+            disabled={isLoading}
+            className='flex-1'
+          />
+          <Button type='submit' disabled={isLoading}>
+            <Send className='h-4 w-4' />
+          </Button>
+        </form>
+      </div>
+    </div>
   );
 }
