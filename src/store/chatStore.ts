@@ -51,36 +51,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
     });
 
-    // 2. Listen for 'chunk' event (for D8 AnswerCard)
+    // 2. Listen for 'sources' event
+    // This event is sent *before* the 'chunk' events
+    es.addEventListener("sources", (event: MessageEvent) => {
+      console.log("Sources event:", event.data);
+      set((state) => ({
+        messages: [...state.messages, `[Sources] ${event.data}`],
+      }));
+    });
+
+    // 3. Listen for 'chunk' event
     es.addEventListener("chunk", (event: MessageEvent) => {
-      // We use a small trick to append chars to the last message
+      // Append text to the last message
       set((state) => {
         const lastMessage = state.messages[state.messages.length - 1];
-        if (lastMessage && lastMessage.startsWith("[Chunk] ")) {
-          // If the last message starts with [Chunk], append text
+        if (lastMessage && lastMessage.startsWith("[Answer] ")) {
           const updatedMessage = lastMessage + event.data;
           return {
             messages: [...state.messages.slice(0, -1), updatedMessage],
           };
         } else {
-          // Otherwise, start a new [Chunk] message
+          // Start a new [Answer] message
           return {
-            messages: [...state.messages, `[Chunk] ${event.data}`],
+            messages: [...state.messages, `[Answer] ${event.data}`],
           };
         }
       });
     });
 
-    // 3. Listen for 'error' event (errors actively sent by backend logic)
+    // 4. Listen for 'error' event
     es.addEventListener("error", (event: MessageEvent) => {
-      // If we are already in the process of closing, ignore this event.
-      // This prevents the 'undefined' error message.
       if (get().isClosing) {
         console.log("Ignoring custom error event during close.");
         return;
       }
-
-      // Check if data exists
       const errorData = event.data || "An undefined error occurred.";
       console.error("SSE stream error:", errorData);
       set((state) => ({
@@ -89,48 +93,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ error: errorData });
     });
 
-    // 4. Listen for 'done' event (stream finished successfully)
+    // 5. Listen for 'done' event
     es.addEventListener("done", (event: MessageEvent) => {
       console.log("Done event received:", event.data);
       set((state) => ({
         messages: [...state.messages, `[Done] ${event.data}`],
       }));
-
-      // We no longer call stopStream() here.
-      // We just set the flag and wait for the "server" to hang up.
       set({ isLoading: false, isClosing: true });
     });
 
-    // 5. 'onerror' (handles network-level errors, or a "clean" close)
+    // 6. 'onerror' (handles network-level errors)
     es.onerror = (err) => {
-      const { isClosing, eventSource } = get(); // Get state once
+      const { isClosing, eventSource } = get();
 
-      // This block handles the "clean" close from the server.
       if (isClosing) {
         console.log("Stream closed cleanly by server.");
         if (eventSource) {
-          eventSource.close(); // *Explicitly* close to prevent reconnect
+          eventSource.close();
         }
-        set({ eventSource: null, isClosing: false }); // Final cleanup
+        set({ eventSource: null, isClosing: false });
         return;
       }
 
-      // If it's an "unexpected" network error
       console.error("EventSource network failed:", err);
       if (eventSource) {
         set({ isLoading: false, error: "Stream connection failed (Network)." });
-        eventSource.close(); // Force close
+        eventSource.close();
         set({ eventSource: null });
       }
     };
   },
 
-  // 'stopStream' is now only for the "Stop" button
+  // 'stopStream' is for the user button
   stopStream: () => {
     const es = get().eventSource;
     if (es) {
-      set({ isClosing: true }); // *First* set the flag
-      es.close(); // *Then* close the connection
+      set({ isClosing: true });
+      es.close();
       console.log("SSE connection closed by user button.");
       set({ eventSource: null, isLoading: false });
     }
