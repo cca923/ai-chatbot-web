@@ -4,6 +4,8 @@ This is the frontend UI for the **Insight AI** search assistant. It's built with
 
 You can check the [Live Demo](https://ai-chatbot-web-nine.vercel.app) here.
 
+---
+
 # System Architecture
 
 ## Key Technologies
@@ -36,6 +38,8 @@ ai-chatbot-web/
 └── README.md                # This file
 ```
 
+---
+
 # Core Features
 
 ## Chat Stream Management
@@ -52,20 +56,7 @@ The flow below illustrates how the frontend interacts with the backend and UI du
 | **5. Update UI**           | React components subscribe to Zustand. Whenever `messages`, `sources`, or `content` update, the UI re-renders automatically.                                                                                                                        |
 | **6. Stop Stream**         | When the stream completes or an error occurs, `stopStream()` closes the `EventSource` and resets loading states to prevent reconnect loops.                                                                                                         |
 
-### Flow Diagram
-
-```mermaid
-flowchart LR
-  A[User Input<br>page.tsx] --> B[startStream()]
-  B --> C[Initialize Messages<br>User + Assistant]
-  C --> D[Connect to SSE<br>/api/chat/ask]
-  D --> E[Receive SSE Events<br>trace / sources / chunk / done]
-  E --> F[Update Zustand Store]
-  F --> G[UI Components<br>TraceBar / SourcesCard / AnswerCard]
-  G --> H[Re-render Chat View]
-  E --> I[stopStream()<br>on done or error]
-  I --> J[Close EventSource<br>Reset State]
-```
+---
 
 # Setup Instructions
 
