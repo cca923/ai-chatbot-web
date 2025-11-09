@@ -8,8 +8,8 @@ export default function TraceBar({ traceStep }: { traceStep: string | null }) {
   }
 
   return (
-    <div className='flex items-center text-xs text-gray-500 mb-2 p-2 bg-gray-50 rounded-md border border-gray-200'>
-      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+    <div className='flex items-center text-sm text-gray-500 mb-4'>
+      <Loader2 size={20} className='mr-2 animate-spin' />
       <span>{traceStep}</span>
     </div>
   );

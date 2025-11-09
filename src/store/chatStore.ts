@@ -7,10 +7,11 @@ import {
   type AssistantMessage,
   type ChatMessage,
   type Source,
+  type UserMessage,
 } from '@/lib/types';
 
-interface ChatHistoryState {
-  history: ChatMessage[];
+interface ChatMessagesState {
+  messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
   eventSource: EventSource | null;
@@ -18,15 +19,27 @@ interface ChatHistoryState {
 
   startStream: (query: string) => void;
   stopStream: () => void;
+  updateMessage: (
+    id: string,
+    updater: (msg: AssistantMessage) => AssistantMessage
+  ) => void;
 }
 
-export const useChatStore = create<ChatHistoryState>((set, get) => ({
-  history: [],
+export const useChatStore = create<ChatMessagesState>((set, get) => ({
+  messages: [],
   isLoading: false,
   error: null,
   eventSource: null,
   isClosing: false,
-
+  updateMessage: (id, updater) => {
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === id && msg.role === 'assistant'
+          ? updater(msg as AssistantMessage)
+          : msg
+      ),
+    }));
+  },
   startStream: (query: string) => {
     // 1. Clear any previous errors and stop any existing stream
     if (get().eventSource) {
@@ -36,63 +49,51 @@ export const useChatStore = create<ChatHistoryState>((set, get) => ({
     // Reset state for the new stream
     set({ isLoading: true, error: null, isClosing: false });
 
-    // 2. Add the User's message to the history
-    const userMessage: ChatMessage = {
+    // 2. Add the User's message to the messages
+    const userMessage: UserMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: query,
     };
 
-    // 3. Add a new, empty Assistant message to the history
+    // 3. Add a new, empty Assistant message to the messages
     const assistantMessageId = crypto.randomUUID();
-    const assistantMessage: ChatMessage = {
+    const assistantMessage: AssistantMessage = {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
       sources: [],
-      traceStep: 'Phase 1: Planning...',
+      traceStep: 'Planning...',
     };
 
-    // Update the history state with both new messages
     set((state) => ({
-      history: [...state.history, userMessage, assistantMessage],
+      messages: [...state.messages, userMessage, assistantMessage],
     }));
 
     // 4. Create and connect the EventSource
     const newUrl = `${API_URL}/api/chat/ask?query=${encodeURIComponent(query)}`;
-    console.log(`Connecting to SSE at: ${newUrl}`);
     const es = new EventSource(newUrl);
     set({ eventSource: es });
 
     // 5. Define SSE event listeners
     es.onopen = () => {
-      console.log('SSE connection opened.');
       set({ isLoading: true });
     };
 
-    // Helper function to update the *last* assistant message in the history
-    const updateAssistantMessage = (
-      updater: (msg: AssistantMessage) => AssistantMessage
-    ) => {
-      set((state) => ({
-        history: state.history.map((msg) =>
-          msg.id === assistantMessageId && msg.role === 'assistant'
-            ? updater(msg)
-            : msg
-        ),
-      }));
-    };
-
     es.addEventListener('trace', (event: MessageEvent) => {
-      console.log('Trace event:', event.data);
-      updateAssistantMessage((msg) => ({ ...msg, traceStep: event.data }));
+      get().updateMessage(assistantMessageId, (msg) => ({
+        ...msg,
+        traceStep: event.data,
+      }));
     });
 
     es.addEventListener('sources', (event: MessageEvent) => {
       try {
-        console.log('Sources event:', event.data);
         const newSources: Source[] = JSON.parse(event.data);
-        updateAssistantMessage((msg) => ({ ...msg, sources: newSources }));
+        get().updateMessage(assistantMessageId, (msg) => ({
+          ...msg,
+          sources: newSources,
+        }));
       } catch (e) {
         console.error('Failed to parse sources JSON:', e);
       }
@@ -100,47 +101,42 @@ export const useChatStore = create<ChatHistoryState>((set, get) => ({
 
     es.addEventListener('chunk', (event: MessageEvent) => {
       // When the first chunk arrives, the "Reading" trace is done.
-      updateAssistantMessage((msg) => ({ ...msg, traceStep: null }));
-
       const chunkText = event.data === 'None' ? '' : event.data;
-      updateAssistantMessage((msg) => ({
+      get().updateMessage(assistantMessageId, (msg) => ({
         ...msg,
+        traceStep: null,
         content: msg.content + chunkText,
       }));
     });
 
     es.addEventListener('error', (event: MessageEvent) => {
-      if (get().isClosing) {
-        return;
-      }
-      const errorData = event.data
-        ? event.data
-        : 'An undefined error occurred.';
+      if (get().isClosing) return;
+
+      const errorData = event.data || 'An undefined error occurred.';
       console.error('SSE stream error:', errorData);
       set({ error: errorData });
-      updateAssistantMessage((msg) => ({
+
+      get().updateMessage(assistantMessageId, (msg) => ({
         ...msg,
         content: msg.content + `\n\n[Error] ${errorData}`,
-        traceStep: null, // Stop trace on error
+        traceStep: null,
       }));
     });
 
-    es.addEventListener('done', (event: MessageEvent) => {
-      console.log('Done event received:', event.data);
-      updateAssistantMessage((msg) => ({ ...msg, traceStep: null })); // Final trace clear
+    es.addEventListener('done', () => {
+      get().updateMessage(assistantMessageId, (msg) => ({
+        ...msg,
+        traceStep: null,
+      }));
       get().stopStream(); // Prevent auto-reconnect
-      console.log("Stream closed cleanly by 'done' event.");
     });
 
-    // Handles NETWORK errors (e.g., server down, CORS)
     es.onerror = (err) => {
       if (get().isClosing) {
         console.log('Stream intentionally closed.');
         return;
       }
-
       console.error('EventSource network failed:', err);
-
       set({
         isLoading: false,
         error: 'Stream connection failed (Network).',
@@ -158,7 +154,6 @@ export const useChatStore = create<ChatHistoryState>((set, get) => ({
         set({ isClosing: true });
       }
       es.close();
-      console.log('SSE connection closed by client.');
       set({ eventSource: null, isLoading: false });
     }
   },

@@ -14,7 +14,7 @@ export default function SourcesCard({ sources }: { sources: Source[] }) {
   };
 
   return (
-    <div className='flex flex-row overflow-x-auto space-x-3 pb-2 mb-4'>
+    <div className='flex flex-row overflow-x-auto space-x-3 mb-4'>
       {sources.map((source) => (
         <div
           key={source.id}
@@ -26,7 +26,7 @@ export default function SourcesCard({ sources }: { sources: Source[] }) {
               handleClick(source.url);
             }
           }}
-          className='block p-3 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm flex-shrink-0 w-64'
+          className='block p-3 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-50 transition-colors shadow-sm flex-shrink-0 w-64 cursor-pointer'
         >
           <div className='flex items-center mb-1'>
             <Globe className='h-4 w-4 mr-2 text-gray-500' />
