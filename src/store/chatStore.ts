@@ -16,13 +16,12 @@ interface ChatMessagesState {
   error: string | null;
   eventSource: EventSource | null;
   isClosing: boolean;
-
-  startStream: (query: string) => void;
-  stopStream: () => void;
   updateMessage: (
     id: string,
     updater: (msg: AssistantMessage) => AssistantMessage
   ) => void;
+  startStream: (query: string) => void;
+  stopStream: () => void;
 }
 
 export const useChatStore = create<ChatMessagesState>((set, get) => ({

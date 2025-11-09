@@ -21,7 +21,9 @@ export default function ChatMessages({ messages }: ChatMessagesProps) {
   if (messages.length === 0) {
     return (
       <div className='flex items-center justify-center mb-4'>
-        <p className='text-3xl font-semibold text-center'>Hello!</p>
+        <p className='text-3xl font-semibold text-center'>
+          Hello! Welcome to Insight AI.
+        </p>
       </div>
     );
   }
