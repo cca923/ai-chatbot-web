@@ -35,6 +35,7 @@ ai-chatbot-web/
 │   └── chatStore.ts         # Global Zustand store managing chat and SSE
 ├── .env.local               # Local environment variables
 ├── package.json             # Project dependencies
+├── PROMPT_LOG.md            # Record of key AI prompts and development decisions
 └── README.md                # This file
 ```
 
