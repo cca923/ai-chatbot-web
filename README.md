@@ -1,4 +1,4 @@
-# Insight AI - Frontend UI
+# Insight AI - Frontend
 
 This is the frontend UI for the **Insight AI** search assistant. It's built with **Next.js**, **Zustand**, and **shadcn/ui** to create a Perplexity-like experience, featuring real-time streaming, source citation, and a conversational interface.
 
