@@ -2,7 +2,10 @@
 
 This is the frontend UI for the **Insight AI** search assistant. It's built with **Next.js**, **Zustand**, and **shadcn/ui** to create a Perplexity-like experience, featuring real-time streaming, source citation, and a conversational interface.
 
-You can check the [Live Demo](https://ai-chatbot-web-nine.vercel.app) here.
+You can try the [Live Demo](https://ai-chatbot-web-nine.vercel.app) here.
+
+### Quick Demo
+<video src="https://github.com/user-attachments/assets/38a94273-402f-4fc2-ae7d-3b3f71489473" controls></video>
 
 ---
 
