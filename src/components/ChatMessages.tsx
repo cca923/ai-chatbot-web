@@ -22,7 +22,7 @@ export default function ChatMessages({ messages }: ChatMessagesProps) {
     return (
       <div className='flex items-center justify-center mb-4'>
         <p className='text-3xl font-semibold text-center'>
-          Hello! Welcome to Insight AI.
+          Hello! Welcome to <span className='text-[#247fff]'>Insight AI</span>.
         </p>
       </div>
     );
